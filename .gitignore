@@ -1,0 +1,14 @@
+# Build output. Nothing compiled or packaged is committed - the brief asks for no binaries or
+# executables, and a repository that carries its own build output goes stale immediately.
+target/
+
+# The Maven wrapper is script-only (distributionType=only-script), so there is no
+# maven-wrapper.jar in this repository. Ignored defensively in case a future `mvn wrapper:wrapper`
+# regenerates the jar-based variant.
+.mvn/wrapper/maven-wrapper.jar
+
+# Editors and OS noise
+.idea/
+*.iml
+.vscode/
+.DS_Store

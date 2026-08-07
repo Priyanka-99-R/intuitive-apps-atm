@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ATM</title>
+  <!--
+    Deliberately dependency free: no CDN, no build step, no framework. The browser front end is
+    here to show that the same domain core serves a second interface, and a 40kB framework would
+    add nothing to that point while adding a build to something that currently has none.
+  -->
+  <style>
+    :root { color-scheme: light dark; --line: #8883; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      max-width: 46rem; margin: 0 auto; padding: 2rem 1rem; line-height: 1.5;
+    }
+    h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
+    .sub { opacity: .7; font-size: .9rem; margin: 0 0 2rem; }
+    fieldset { border: 1px solid var(--line); border-radius: .5rem; padding: 1rem; margin: 0 0 1rem; }
+    legend { padding: 0 .4rem; font-weight: 600; font-size: .85rem; text-transform: uppercase; letter-spacing: .04em; }
+    label { display: block; font-size: .85rem; margin-bottom: .25rem; opacity: .8; }
+    input {
+      font: inherit; padding: .45rem .6rem; border: 1px solid var(--line);
+      border-radius: .35rem; background: transparent; color: inherit; width: 100%;
+    }
+    button {
+      font: inherit; padding: .45rem .9rem; border: 1px solid var(--line);
+      border-radius: .35rem; background: transparent; color: inherit; cursor: pointer;
+    }
+    button:hover:not(:disabled) { border-color: currentColor; }
+    button:disabled { opacity: .4; cursor: not-allowed; }
+    .row { display: flex; gap: .5rem; align-items: end; flex-wrap: wrap; }
+    .row > * { flex: 1 1 8rem; }
+    .row > button { flex: 0 0 auto; }
+    .balance { font-size: 2rem; font-weight: 600; margin: .25rem 0; font-variant-numeric: tabular-nums; }
+    .owed { font-size: .9rem; margin: .1rem 0; }
+    .owed.to { color: #c0392b; }
+    .owed.from { color: #1e8449; }
+    #log {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .82rem;
+      white-space: pre-wrap; border: 1px solid var(--line); border-radius: .5rem;
+      padding: .85rem; min-height: 9rem; max-height: 22rem; overflow-y: auto; margin: 0;
+    }
+    .err { color: #c0392b; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+
+<h1>ATM</h1>
+<p class="sub">
+  The same domain core the command line uses, behind a REST API.
+  State lives in memory only &mdash; restart the server and the bank is empty again.
+</p>
+
+<fieldset id="login-panel">
+  <legend>Login</legend>
+  <div class="row">
+    <div>
+      <label for="login-name">Customer name</label>
+      <input id="login-name" placeholder="Alice" autocomplete="off">
+    </div>
+    <button id="login-btn">Log in</button>
+  </div>
+</fieldset>
+
+<div id="session-panel" class="hidden">
+  <fieldset>
+    <legend id="who">Account</legend>
+    <div class="balance" id="balance">$0</div>
+    <div id="obligations"></div>
+    <p><button id="logout-btn">Log out</button></p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Deposit / withdraw</legend>
+    <div class="row">
+      <div>
+        <label for="amount">Amount</label>
+        <input id="amount" placeholder="100" autocomplete="off">
+      </div>
+      <button id="deposit-btn">Deposit</button>
+      <button id="withdraw-btn">Withdraw</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Transfer</legend>
+    <div class="row">
+      <div>
+        <label for="target">To customer</label>
+        <input id="target" placeholder="Bob" autocomplete="off" list="customers">
+        <datalist id="customers"></datalist>
+      </div>
+      <div>
+        <label for="transfer-amount">Amount</label>
+        <input id="transfer-amount" placeholder="50" autocomplete="off">
+      </div>
+      <button id="transfer-btn">Transfer</button>
+    </div>
+  </fieldset>
+</div>
+
+<fieldset>
+  <legend>Session log</legend>
+  <pre id="log"></pre>
+</fieldset>
+
+<script>
+  'use strict';
+
+  // "Who is logged in" is client state. The server API is stateless and names the customer on
+  // every request - see AtmController for why.
+  let current = null;
+
+  const $ = (id) => document.getElementById(id);
+  const log = $('log');
+
+  function write(text, isError) {
+    const line = document.createElement('span');
+    if (isError) line.className = 'err';
+    line.textContent = text + '\n';
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  async function call(path, options) {
+    const response = await fetch(path, options);
+    const body = await response.json().catch(() => null);
+    if (!response.ok) {
+      // ApiExceptionHandler returns RFC 9457 ProblemDetail, so `detail` is the human-readable
+      // message. Falling back to the status keeps this honest if something else fails.
+      throw new Error((body && body.detail) || ('HTTP ' + response.status));
+    }
+    return body;
+  }
+
+  const post = (path, payload) => call(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: payload ? JSON.stringify(payload) : null
+  });
+
+  /** Renders a customer view using the same wording as the CLI. */
+  function render(customer) {
+    $('who').textContent = customer.name;
+    $('balance').textContent = '$' + customer.balance;
+
+    const list = $('obligations');
+    list.replaceChildren();
+    for (const o of customer.obligations) {
+      const owedTo = o.direction === 'OWED_TO';
+      const row = document.createElement('p');
+      row.className = 'owed ' + (owedTo ? 'to' : 'from');
+      row.textContent = 'Owed $' + o.amount + (owedTo ? ' to ' : ' from ') + o.counterparty;
+      list.appendChild(row);
+    }
+  }
+
+  function reportTransaction(result) {
+    for (const t of result.transfers) {
+      write('Transferred $' + t.amount + ' to ' + t.to);
+    }
+    write('Your balance is $' + result.customer.balance);
+    for (const o of result.customer.obligations) {
+      write('Owed $' + o.amount + (o.direction === 'OWED_TO' ? ' to ' : ' from ') + o.counterparty);
+    }
+    write('');
+    render(result.customer);
+  }
+
+  async function refreshCustomerList() {
+    const everyone = await call('/api/customers');
+    $('customers').replaceChildren(...everyone
+      .filter((c) => c.name !== current)
+      .map((c) => { const o = document.createElement('option'); o.value = c.name; return o; }));
+  }
+
+  /** Wraps a handler so every failure reaches the log instead of the browser console. */
+  function guard(handler) {
+    return async () => {
+      try {
+        await handler();
+      } catch (e) {
+        write('Error: ' + e.message, true);
+        write('');
+      }
+    };
+  }
+
+  const requireAmount = (id) => {
+    const value = $(id).value.trim();
+    if (!value) throw new Error('Enter an amount first');
+    return value;
+  };
+
+  $('login-btn').onclick = guard(async () => {
+    const name = $('login-name').value.trim();
+    if (!name) throw new Error('Enter a customer name first');
+
+    const customer = await post('/api/customers/' + encodeURIComponent(name) + '/login');
+    current = customer.name;
+    write('$ login ' + name);
+    write('Hello, ' + customer.name + '!');
+    write('Your balance is $' + customer.balance);
+    for (const o of customer.obligations) {
+      write('Owed $' + o.amount + (o.direction === 'OWED_TO' ? ' to ' : ' from ') + o.counterparty);
+    }
+    write('');
+
+    render(customer);
+    $('login-panel').classList.add('hidden');
+    $('session-panel').classList.remove('hidden');
+    await refreshCustomerList();
+  });
+
+  $('logout-btn').onclick = guard(async () => {
+    write('$ logout');
+    write('Goodbye, ' + current + '!');
+    write('');
+    current = null;
+    $('login-name').value = '';
+    $('session-panel').classList.add('hidden');
+    $('login-panel').classList.remove('hidden');
+  });
+
+  $('deposit-btn').onclick = guard(async () => {
+    const amount = requireAmount('amount');
+    write('$ deposit ' + amount);
+    reportTransaction(await post('/api/customers/' + encodeURIComponent(current) + '/deposit', { amount }));
+    $('amount').value = '';
+  });
+
+  $('withdraw-btn').onclick = guard(async () => {
+    const amount = requireAmount('amount');
+    write('$ withdraw ' + amount);
+    reportTransaction(await post('/api/customers/' + encodeURIComponent(current) + '/withdraw', { amount }));
+    $('amount').value = '';
+  });
+
+  $('transfer-btn').onclick = guard(async () => {
+    const target = $('target').value.trim();
+    if (!target) throw new Error('Enter a customer to transfer to');
+    const amount = requireAmount('transfer-amount');
+
+    write('$ transfer ' + target + ' ' + amount);
+    reportTransaction(await post('/api/customers/' + encodeURIComponent(current) + '/transfer',
+      { target, amount }));
+    $('transfer-amount').value = '';
+    await refreshCustomerList();
+  });
+
+  // Enter submits the field you are in.
+  $('login-name').onkeydown = (e) => { if (e.key === 'Enter') $('login-btn').click(); };
+  $('amount').onkeydown = (e) => { if (e.key === 'Enter') $('deposit-btn').click(); };
+  $('transfer-amount').onkeydown = (e) => { if (e.key === 'Enter') $('transfer-btn').click(); };
+
+  write('ATM ready. This bank is empty until somebody logs in.');
+  write('');
+</script>
+</body>
+</html>

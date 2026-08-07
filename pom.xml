@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.intuitiveapps</groupId>
+  <artifactId>atm-parent</artifactId>
+  <version>1.0.0</version>
+  <packaging>pom</packaging>
+  <name>ATM</name>
+  <description>ATM simulation - a framework-free domain core with CLI and REST adapters</description>
+
+  <!--
+    Module layout mirrors the architecture (ports and adapters):
+
+      atm-domain  the business rules. Deliberately has NO dependencies at all
+                  outside of test scope - that constraint is enforced here, in
+                  the build, not just by convention.
+      atm-cli     a terminal adapter. Depends on atm-domain only.
+      atm-web     an HTTP adapter (Spring Boot). Depends on atm-domain only.
+
+    atm-cli and atm-web never see each other. Either can be deleted without
+    touching a line of business logic.
+  -->
+  <modules>
+    <module>atm-domain</module>
+    <module>atm-cli</module>
+    <module>atm-web</module>
+  </modules>
+
+  <properties>
+    <java.version>17</java.version>
+    <maven.compiler.release>${java.version}</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <spring.boot.version>3.3.5</spring.boot.version>
+    <junit.version>5.11.3</junit.version>
+    <assertj.version>3.26.3</assertj.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring.boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.junit</groupId>
+        <artifactId>junit-bom</artifactId>
+        <version>${junit.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.assertj</groupId>
+        <artifactId>assertj-core</artifactId>
+        <version>${assertj.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+        <configuration>
+          <!--
+            Retains parameter names in the class files. spring-boot-starter-parent sets this for
+            you; this build imports the Spring BOM instead of inheriting from that parent, so it
+            has to be set explicitly. Without it, Spring cannot infer the name of a @PathVariable
+            and every such request fails at runtime rather than at compile time.
+
+            The controller also names its bindings explicitly, so the application does not depend
+            on a compiler flag being remembered - but both are worth having.
+          -->
+          <parameters>true</parameters>
+        </configuration>
+      </plugin>
+    </plugins>
+
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>3.5.2</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-shade-plugin</artifactId>
+          <version>3.6.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-maven-plugin</artifactId>
+          <version>${spring.boot.version}</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+</project>

@@ -1,0 +1,21 @@
+server:
+  port: ${PORT:8080}
+  error:
+    # The ProblemDetail responses from ApiExceptionHandler already carry everything a client
+    # should see. Stack traces are never included: they leak internals and help nobody.
+    include-stacktrace: never
+
+spring:
+  application:
+    name: atm-web
+  mvc:
+    problemdetails:
+      enabled: true
+
+logging:
+  level:
+    root: WARN
+    com.intuitiveapps: INFO
+    # Keep the console readable - this is a demo people will run by hand, and a wall of Spring
+    # banner output makes the one line that matters (the URL) harder to find.
+    org.springframework.web: WARN

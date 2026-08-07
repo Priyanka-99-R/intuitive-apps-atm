@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.intuitiveapps</groupId>
+    <artifactId>atm-parent</artifactId>
+    <version>1.0.0</version>
+  </parent>
+
+  <artifactId>atm-domain</artifactId>
+  <name>ATM :: Domain</name>
+  <description>
+    The banking rules. Note the complete absence of a &lt;dependencies&gt; section:
+    this module compiles against nothing but the JDK. No Spring, no logging
+    framework, no JSON library. That is the point - the rules below are the
+    asset, and they should outlive any framework choice made around them.
+  </description>
+</project>
