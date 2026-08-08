@@ -36,7 +36,7 @@ two; after that it starts immediately.
 |---|---|
 | `./start.sh` | Builds and launches the CLI. This is the main deliverable. |
 | `./start-web.sh` | Builds and launches the Spring Boot server; open <http://localhost:8080>. `PORT=9090 ./start-web.sh` to use another port. |
-| `./run-tests.sh` | Runs all 81 tests. |
+| `./run-tests.sh` | Runs all 82 tests. |
 
 There is no build tool to install. The repository carries a **script-only Maven wrapper**
 (`mvnw`), which downloads Maven itself on first use — so there is no `maven-wrapper.jar` and, as
@@ -148,7 +148,7 @@ is the constraint enforced by the build. The rules cannot accidentally acquire a
 framework, because there is nowhere for one to come from. `atm-cli` and `atm-web` cannot see each
 other, so either could be deleted without touching a line of business logic.
 
-The practical payoff shows up in the tests: the domain's 44 tests run in under a second with no
+The practical payoff shows up in the tests: the domain's 45 tests run in under a second with no
 container, no HTTP and no mocking, because there is nothing to stand up.
 
 ---
@@ -324,12 +324,12 @@ real institution has. It is a one-line change in `Bank.transfer` if the intent w
 
 ## 8. Testing
 
-**81 tests.** `./run-tests.sh`
+**82 tests.** `./run-tests.sh`
 
 | Where | Count | What it covers |
 |---|---|---|
 | `SpecificationExampleTest` | 2 | The brief's sample session, replayed step by step, asserting every balance and obligation |
-| `MoneyTest` | 20 | Parsing, rejection, exact decimal arithmetic, formatting |
+| `MoneyTest` | 21 | Parsing, rejection, exact decimal arithmetic, formatting |
 | `BankTest` | 22 | Login, deposit, withdraw, transfer, netting, FIFO repayment, cascades, cycles, and two system-wide invariants |
 | `CommandParserTest` | 21 | Every command, casing, whitespace, arity, unknown verbs, delegation of validation |
 | `AtmShellTest` | 8 | The complete transcript compared line by line; error recovery; clean start |
